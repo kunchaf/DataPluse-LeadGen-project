@@ -1,0 +1,96 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="loading-container animate-fade-in" style="text-align: center; padding: 10rem 2rem;">
+    <div class="intelligence-pulse">
+        <i class="fas fa-satellite-dish"></i>
+    </div>
+    
+    <h2 class="gradient-text" style="font-size: 2.5rem; margin-top: 2rem;">Synchronizing Market Intelligence</h2>
+    <p style="color: var(--text-dim); margin-top: 1rem; font-size: 1.1rem;">Please wait while the system extracts global economic data. Do not close this window.</p>
+    
+    <div class="progress-wrapper" style="max-width: 500px; margin: 3rem auto;">
+        <div id="status-badge" class="badge-hidden">Pending</div>
+        <div class="progress-bar-bg">
+            <div id="progress-bar" class="progress-bar-fill" style="width: 0%;"></div>
+        </div>
+        <div id="status-text" style="margin-top: 1.5rem; font-weight: 700; color: var(--primary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Initialising data connection...</div>
+    </div>
+</div>
+
+<script>
+    const taskId = "{{ task_id }}";
+    const scanId = "{{ scan_id }}";
+    const statusBadge = document.getElementById('status-badge');
+    
+    function checkStatus() {
+        fetch(`/status/${taskId}`)
+            .then(response => response.json())
+            .then(data => {
+                const percent = data.percent || 0;
+                document.getElementById('progress-bar').style.width = percent + "%";
+                
+                if (data.state === 'SUCCESS') {
+                    statusBadge.innerText = "Synchronized";
+                    statusBadge.className = "status-badge synchronized";
+                    document.getElementById('status-text').innerText = "Intelligence Hub Ready. Redirecting...";
+                    setTimeout(() => {
+                        window.location.href = `/dashboard?scan_id=${scanId}`;
+                    }, 1500);
+                } else if (data.state === 'FAILURE') {
+                    statusBadge.innerText = "Sync Failed - Retrying";
+                    statusBadge.className = "status-badge failed";
+                    document.getElementById('status-text').innerText = "Resilience engine attempting recovery...";
+                    setTimeout(checkStatus, 3000);
+                } else {
+                    statusBadge.innerText = "Extracting Data";
+                    statusBadge.className = "status-badge active";
+                    document.getElementById('status-text').innerText = data.status || "Synchronizing layers...";
+                    setTimeout(checkStatus, 2000);
+                }
+            })
+            .catch(error => {
+                console.error('Error polling status:', error);
+                setTimeout(checkStatus, 5000);
+            });
+    }
+
+    checkStatus();
+</script>
+
+<style>
+    .status-badge {
+        display: inline-block;
+        padding: 0.5rem 1.2rem;
+        border-radius: 100px;
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-bottom: 1.5rem;
+        transition: all 0.3s;
+    }
+
+    .status-badge.synchronized {
+        background: rgba(0, 210, 255, 0.1);
+        color: var(--primary);
+        border: 1px solid var(--primary);
+        box-shadow: 0 0 20px rgba(0, 210, 255, 0.2);
+    }
+
+    .status-badge.failed {
+        background: rgba(231, 29, 54, 0.1);
+        color: var(--danger);
+        border: 1px solid var(--danger);
+        box-shadow: 0 0 20px rgba(231, 29, 54, 0.2);
+    }
+
+    .status-badge.active {
+        background: var(--bg-input);
+        color: var(--text-dim);
+        border: 1px solid var(--glass-border);
+    }
+
+    .badge-hidden { display: none; }
+
+{% endblock %}

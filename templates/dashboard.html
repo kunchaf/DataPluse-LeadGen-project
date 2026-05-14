@@ -1,0 +1,242 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<!-- Dynamic Killzone Sessions Overlay -->
+<div id="killzone-overlay" class="killzone-bar animate-fade-in">
+    <div class="kz-status">
+        <i class="fas fa-globe"></i> Global Market Status: <span id="kz-active-sessions" class="kz-highlight">Calculating...</span>
+    </div>
+    <div id="kz-warning" class="kz-warning hidden">
+        <i class="fas fa-exclamation-triangle"></i> HIGH VOLATILITY: LDN / NY OVERLAP ACTIVE
+    </div>
+    <div class="kz-time">
+        <i class="fas fa-clock"></i> <span id="kz-utc-time">00:00 UTC</span>
+    </div>
+</div>
+
+<div class="dashboard-header animate-fade-in" style="animation-delay: 0.1s;">
+    <div>
+        <h1 class="gradient-text">Intelligence Hub</h1>
+        <p style="color: var(--text-dim); margin-top: 5px;">
+            <i class="fas fa-database"></i> Active Sync: <strong>{{ current_scan_name or "Latest Intelligence" }}</strong>
+        </p>
+    </div>
+    <div class="action-buttons-wrapper">
+        <form action="/dashboard" method="GET" class="sync-selector">
+            <i class="fas fa-history"></i>
+            <select name="scan_id" onchange="this.form.submit()">
+                {% for scan in all_scans %}
+                <option value="{{ scan.id }}" {% if scan.id == current_scan_id %}selected{% endif %}>{{ scan.name }} ({{ scan.timestamp.strftime('%b %d') }})</option>
+                {% endfor %}
+            </select>
+        </form>
+        <div class="button-group">
+            <a href="/download/{{ current_scan_id }}" class="btn btn-glass" title="Download Data">
+                <i class="fas fa-file-download"></i> Export
+            </a>
+            <a href="/" class="btn btn-accent-glow">
+                <i class="fas fa-plus"></i> New Sync
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="stats-grid animate-fade-in" style="animation-delay: 0.2s;">
+    <div class="stat-card">
+        <div class="label">Total Events</div>
+        <div class="value">{{ leads|length }}</div>
+        <div class="trend up"><i class="fas fa-calendar-alt"></i> Synchronization Horizon</div>
+    </div>
+    <div class="stat-card" style="border-left: 4px solid var(--danger);">
+        <div class="label">Red Flag Alerts</div>
+        <div class="value" style="color: var(--danger);">
+            {{ leads|selectattr('impact', 'equalto', 'High')|list|length }}
+        </div>
+        <div class="trend" style="color: var(--danger); font-weight: 700;"><i class="fas fa-exclamation-triangle"></i>
+            CRITICAL IMPACT</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Synchronization Status</div>
+        <div class="value">Verified</div>
+        <div class="trend"><i class="fas fa-shield-alt"></i> Data Layer Secured</div>
+    </div>
+</div>
+
+<h3 class="section-title animate-fade-in" style="animation-delay: 0.3s;"><i class="fas fa-fire"></i> Market Volatility Heatmap</h3>
+<div class="volatility-grid animate-fade-in" style="animation-delay: 0.4s;">
+    {% for curr, data in volatility.items() %}
+    <div class="volatility-card {% if data.score > 5 %}heatmap-high{% elif data.score > 2 %}heatmap-med{% endif %}">
+        <div class="vol-curr">{{ curr }}</div>
+        <div class="vol-stats">
+            <span class="vol-tag high">{{ data.High }} High</span>
+            <span class="vol-tag med">{{ data.Medium }} Med</span>
+        </div>
+        <div class="vol-pressure">Pressure: {{ data.score }}</div>
+        {% if data.score > 5 %}
+        <div class="pulse-ring"></div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<h3 class="section-title animate-fade-in" style="animation-delay: 0.5s;"><i class="fas fa-list-ul"></i> Intelligence Feed</h3>
+<div class="table-container animate-fade-in" style="animation-delay: 0.6s;">
+    {% if leads %}
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Currency</th>
+                <th>Killzone</th>
+                <th>Event Description</th>
+                <th>Impact</th>
+                <th>Insights</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% set vars = {'prev_date': ''} %}
+            {% for lead in leads %}
+            {% if lead.date != vars.prev_date %}
+            <tr class="date-breaker">
+                <td colspan="7"
+                    style="background: var(--bg-input); padding: 1rem 1.5rem; font-weight: 800; color: var(--primary); border-radius: 8px; font-family: var(--font-display); border-bottom: 2px solid var(--primary-light);">
+                    <i class="fas fa-calendar-day"></i> {{ lead.date }}
+                </td>
+            </tr>
+            {% if vars.update({'prev_date': lead.date }) %}{% endif %}
+            {% endif %}
+            <tr>
+                <td><span class="timestamp">{{ lead.time }}</span></td>
+                <td><strong class="entity-name">{{ lead.currency }}</strong></td>
+                <td>
+                    {% if lead.killzone != 'Outside' %}
+                    <span class="killzone-pill"
+                        style="background: rgba(67, 97, 238, 0.1); color: var(--primary); padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; border: 1px solid rgba(67, 97, 238, 0.2);">
+                        <i class="fas fa-clock"></i> {{ lead.killzone }}
+                    </span>
+                    {% else %}
+                    <span style="color: var(--text-dim); font-size: 0.7rem;">--</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="entity-name">{{ lead.event_title }}</span>
+                    {% if lead.tags %}
+                    <div class="tags-container" style="margin-top: 5px; display: flex; gap: 5px; flex-wrap: wrap;">
+                        {% for tag in lead.tags.split(',') %}
+                        {% if tag %}
+                        <span class="sentiment-tag">{{ tag }}</span>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if lead.impact == 'High' %}
+                    <span class="badge badge-failed pulse-red">
+                        <i class="fas fa-fire-alt"></i> High
+                    </span>
+                    {% elif lead.impact == 'Medium' %}
+                    <span class="badge" style="background: #fff3cd; color: #856404; border: 1px solid #ffeeba;">
+                        <i class="fas fa-exclamation-circle"></i> Medium
+                    </span>
+                    {% else %}
+                    <span class="badge badge-success">
+                        <i class="fas fa-info-circle"></i> Low
+                    </span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="insight-wrapper">
+                        <button class="btn-icon" onclick="toggleInsight('{{ lead.id }}')">
+                            <i class="fas fa-lightbulb"></i>
+                        </button>
+                    </div>
+                </td>
+                <td>
+                    <button class="btn-icon" title="View Details">
+                        <i class="fas fa-chart-line"></i>
+                    </button>
+                </td>
+            </tr>
+            <tr id="insight-{{ lead.id }}" class="insight-row" style="display: none;">
+                <td colspan="7">
+                    <div class="insight-content" style="padding: 10px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                        <div class="insight-header" style="font-weight: bold; margin-bottom: 5px;">
+                            <i class="fas fa-brain"></i> Intelligence Analysis
+                        </div>
+                        <p>{{ lead.explanation|safe if lead.explanation else "No detailed analysis available for this event." }}</p>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        function toggleInsight(id) {
+            const row = document.getElementById('insight-' + id);
+            row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+        }
+
+        // Killzone Session Logic
+        function updateKillzone() {
+            const now = new Date();
+            const utcHour = now.getUTCHours();
+            const utcMin = now.getUTCMinutes();
+            
+            // Format UTC Time
+            const timeStr = `${utcHour.toString().padStart(2, '0')}:${utcMin.toString().padStart(2, '0')} UTC`;
+            document.getElementById('kz-utc-time').innerText = timeStr;
+
+            let activeSessions = [];
+            let isOverlap = false;
+
+            // Tokyo: 00:00 - 09:00 UTC
+            if (utcHour >= 0 && utcHour < 9) activeSessions.push("Tokyo");
+            // London: 08:00 - 17:00 UTC
+            if (utcHour >= 8 && utcHour < 17) activeSessions.push("London");
+            // New York: 13:00 - 22:00 UTC
+            if (utcHour >= 13 && utcHour < 22) activeSessions.push("New York");
+
+            // Overlap: 13:00 - 17:00 UTC (London & NY)
+            if (utcHour >= 13 && utcHour < 17) {
+                isOverlap = true;
+            }
+
+            document.getElementById('kz-active-sessions').innerText = activeSessions.join(" & ") || "Sydney / Transition";
+
+            const overlay = document.getElementById('killzone-overlay');
+            const warning = document.getElementById('kz-warning');
+
+            if (isOverlap) {
+                overlay.classList.add('overlap-active');
+                warning.classList.remove('hidden');
+            } else {
+                overlay.classList.remove('overlap-active');
+                warning.classList.add('hidden');
+            }
+        }
+
+        // Initialize and update every minute
+        updateKillzone();
+        setInterval(updateKillzone, 60000);
+    </script>
+
+    {% else %}
+    <div class="glass-card empty-state">
+        <div class="empty-icon-wrapper">
+            <i class="fas fa-calendar-times"></i>
+        </div>
+        <h2>No Economic Data</h2>
+        <p>The calendar is currently empty. Initialize a scan to fetch Forex Factory intelligence.</p>
+        <div class="empty-actions">
+            <a href="/" class="btn btn-primary">Fetch Calendar</a>
+            <a href="/seed" class="btn btn-outline">
+                <i class="fas fa-flask"></i> Seed Demo Data
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

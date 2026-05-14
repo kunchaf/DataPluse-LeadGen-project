@@ -1,0 +1,211 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .hero-dynamic {
+        background: linear-gradient(rgba(10, 12, 18, 0.8), rgba(10, 12, 18, 0.8)), url("{{ url_for('static', filename='images/hero.png') }}");
+        background-size: cover;
+        background-position: center;
+    }
+    .ticker-wrap {
+        width: 100%;
+        overflow: hidden;
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--glass-border);
+        padding: 0.8rem 0;
+        margin-bottom: 2rem;
+        border-radius: 12px;
+    }
+    .ticker {
+        display: flex;
+        white-space: nowrap;
+        animation: ticker 30s linear infinite;
+    }
+    .ticker-item {
+        padding: 0 2rem;
+        color: var(--text-dim);
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    @keyframes ticker {
+        0% { transform: translateX(100%); }
+        100% { transform: translateX(-100%); }
+    }
+</style>
+
+<div class="ticker-wrap">
+    <div class="ticker">
+        <div class="ticker-item"><i class="fas fa-bolt" style="color: var(--warning);"></i> EUR/USD: ECB President Speaks Today</div>
+        <div class="ticker-item"><i class="fas fa-bolt" style="color: var(--danger);"></i> USD: Core CPI Data Incoming</div>
+        <div class="ticker-item"><i class="fas fa-bolt" style="color: var(--success);"></i> GBP: Unemployment Rate Steady</div>
+        <div class="ticker-item"><i class="fas fa-bolt" style="color: var(--warning);"></i> JPY: BOJ Meeting Minutes Released</div>
+        <div class="ticker-item"><i class="fas fa-bolt" style="color: var(--primary);"></i> AUD: Employment Change Beat Expectations</div>
+    </div>
+</div>
+
+<div class="hero animate-fade-in hero-dynamic">
+
+    <h1 class="gradient-text" style="font-size: 3.5rem; color: white;">Global Economic <span style="color: var(--accent);">Intelligence</span></h1>
+    <p style="color: rgba(255, 255, 255, 0.8);">Automate your fundamental analysis by extracting high-impact economic events directly from the global market calendar.</p>
+
+    
+    <div class="glass-card main-config-card animate-fade-in">
+        <div class="config-header">
+            <h2 class="gradient-text"><i class="fas fa-microchip"></i> Pulse Intelligence Engine</h2>
+            <p>Select your specialized intelligence path to begin synchronization.</p>
+        </div>
+
+        <!-- Step 1: Asset Path -->
+        <div id="step-1" class="step-container">
+            <h3 class="step-title">Step 1: Select Intelligence Path</h3>
+            <div class="path-grid">
+                <div class="path-card" onclick="selectPath('currency')">
+                    <i class="fas fa-coins"></i>
+                    <h4>Global Currencies</h4>
+                    <p>Monitor 20+ fiat currencies and global economic shifts.</p>
+                </div>
+                <div class="path-card gold" onclick="selectPath('gold')">
+                    <i class="fas fa-crown"></i>
+                    <h4>Gold (XAU/USD)</h4>
+                    <p>Focus exclusively on precious metal volatility & Safe Haven flow.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Specialized Filters -->
+        <div id="step-2" class="step-container" style="display: none;">
+            <button type="button" class="btn-back" onclick="goBack()"><i class="fas fa-arrow-left"></i> Back to Path Selection</button>
+            
+            <form action="/run" method="POST" id="scan-form">
+                <input type="hidden" name="asset_type" id="asset_type">
+                
+                <div class="config-grid">
+                        <div class="config-section">
+                            <h3><i class="fas fa-tag"></i> Synchronization Name</h3>
+                            <div class="input-wrapper">
+                                <input type="text" name="scan_name" placeholder="e.g. Weekly Alpha Scan" required>
+                            </div>
+                        </div>
+                        <div class="config-section">
+                            <h3><i class="fas fa-calendar-alt"></i> Intelligence Window</h3>
+                            <div class="date-picker-group">
+                                <div class="date-input">
+                                    <label>Start</label>
+                                    <input type="date" name="start_date" required>
+                                </div>
+                                <div class="date-input">
+                                    <label>End</label>
+                                    <input type="date" name="end_date" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="config-section">
+                            <h3><i class="fas fa-bolt"></i> Impact Threshold</h3>
+                            <div class="pill-group">
+                                <label class="pill-check"><input type="checkbox" name="impact" value="High" checked><span>High</span></label>
+                                <label class="pill-check"><input type="checkbox" name="impact" value="Medium" checked><span>Med</span></label>
+                                <label class="pill-check"><input type="checkbox" name="impact" value="Low"><span>Low</span></label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Currencies Search & Select -->
+                    <div class="config-col" id="currency-filters">
+                        <div class="config-section">
+                            <h3><i class="fas fa-search"></i> Target Currencies</h3>
+                            <div class="search-wrapper">
+                                <i class="fas fa-filter"></i>
+                                <input type="text" id="curr-search" placeholder="Search 20+ currencies (e.g. USD, TRY, ZAR)...">
+                            </div>
+                            <div class="currency-scroll-box">
+                                <div class="pill-group grid-view" id="currency-list">
+                                    {% for curr in ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'NZD', 'SGD', 'HKD', 'SEK', 'NOK', 'DKK', 'TRY', 'MXN', 'ZAR', 'CNH', 'KRW', 'INR', 'BRL', 'PLN', 'RUB'] %}
+                                    <label class="pill-check curr-item" data-name="{{ curr }}">
+                                        <input type="checkbox" name="currencies" value="{{ curr }}">
+                                        <span>{{ curr }}</span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-col" id="gold-filters" style="display: none;">
+                        <div class="config-section">
+                            <h3><i class="fas fa-info-circle"></i> Gold Intelligence</h3>
+                            <div class="gold-alert-box">
+                                <i class="fas fa-gem"></i>
+                                <p>System will automatically prioritize <strong>USD High Impact</strong> events which are the primary drivers for XAU/USD volatility.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-giant" style="margin-top: 2rem;">
+                    <i class="fas fa-satellite-dish"></i> Start Intelligence Gathering
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Asset Path Selection
+    function selectPath(path) {
+        document.getElementById('asset_type').value = path;
+        document.getElementById('step-1').style.display = 'none';
+        document.getElementById('step-2').style.display = 'block';
+        
+        if (path === 'gold') {
+            document.getElementById('currency-filters').style.display = 'none';
+            document.getElementById('gold-filters').style.display = 'block';
+        } else {
+            document.getElementById('currency-filters').style.display = 'block';
+            document.getElementById('gold-filters').style.display = 'none';
+        }
+    }
+
+    function goBack() {
+        document.getElementById('step-1').style.display = 'block';
+        document.getElementById('step-2').style.display = 'none';
+    }
+
+    // Currency Search Logic
+    const searchInput = document.getElementById('curr-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const term = e.target.value.toUpperCase();
+            document.querySelectorAll('.curr-item').forEach(item => {
+                const name = item.dataset.name;
+                item.style.display = name.includes(term) ? 'block' : 'none';
+            });
+        });
+    }
+
+    // Range display logic
+    const daysRange = document.getElementById('days-range');
+    const daysVal = document.getElementById('days-val');
+    if (daysRange && daysVal) {
+        daysRange.addEventListener('input', () => daysVal.textContent = daysRange.value);
+    }
+</script>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="label">Supported Currencies</div>
+        <div class="value" style="color: var(--success);">G10+</div>
+        <div class="trend up"><i class="fas fa-check-circle"></i> Major & Minor Pairs</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Data Sources</div>
+        <div class="value" style="color: var(--primary);">Forex Factory</div>
+        <div class="trend"><i class="fas fa-bolt"></i> Real-time Parsing</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Intelligence Level</div>
+        <div class="value" style="color: var(--primary-light);">Institutional</div>
+        <div class="trend up"><i class="fas fa-server"></i> High Reliability</div>
+    </div>
+</div>
+{% endblock %}
+
