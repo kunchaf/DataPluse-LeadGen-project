@@ -174,19 +174,84 @@ def dashboard():
 
 @app.route('/download/<int:scan_id>')
 def download(scan_id):
+    import pandas as pd
+    from openpyxl.styles import Font, Alignment, PatternFill
+    
     scan = db.get_or_404(Scan, scan_id)
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['Date', 'Time', 'Currency', 'Impact', 'Event', 'Killzone'])
     
+    # Structure events into a list of dictionaries for pandas DataFrame
+    events_data = []
     for event in scan.events:
-        writer.writerow([event.date, event.time, event.currency, event.impact, event.event_title, event.killzone])
+        events_data.append({
+            'Date': event.date,
+            'Time': event.time,
+            'Currency': event.currency,
+            'Impact': event.impact,
+            'Event Description': event.event_title,
+            'Killzone': event.killzone,
+            'NLP Tags': event.tags
+        })
     
+    df = pd.DataFrame(events_data)
+    
+    # Handle edge case where the scan contains no events
+    if df.empty:
+        df = pd.DataFrame(columns=['Date', 'Time', 'Currency', 'Impact', 'Event Description', 'Killzone', 'NLP Tags'])
+        
+    # Write to an in-memory byte buffer
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Market Intelligence')
+        
+        workbook = writer.book
+        worksheet = writer.sheets['Market Intelligence']
+        
+        # Style headers to match the DataPulse Premium look (Espresso Brown Fill with white text)
+        header_font = Font(name='Segoe UI', size=11, bold=True, color='FFFFFF')
+        header_fill = PatternFill(start_color='2A1E17', end_color='2A1E17', fill_type='solid') # Luxury Espresso
+        header_align = Alignment(horizontal='center', vertical='center')
+        
+        for cell in worksheet[1]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_align
+            
+        # Style data cells (Outfit/Segoe UI, clean alignments, and soft grid structures)
+        data_font = Font(name='Segoe UI', size=10)
+        data_align = Alignment(horizontal='left', vertical='center')
+        center_align = Alignment(horizontal='center', vertical='center')
+        
+        # Apply alignment across data row matrices
+        for row in range(2, worksheet.max_row + 1):
+            for col in range(1, worksheet.max_column + 1):
+                cell = worksheet.cell(row=row, column=col)
+                cell.font = data_font
+                # Center alignments for short-code metadata columns
+                if col in [1, 2, 3, 4, 6]:
+                    cell.alignment = center_align
+                else:
+                    cell.alignment = data_align
+                    
+        # Set premium double height for the header row
+        worksheet.row_dimensions[1].height = 28
+        
+        # Dynamically auto-fit column widths based on text length to prevent truncating text
+        for col in worksheet.columns:
+            max_len = 0
+            col_letter = col[0].column_letter
+            for cell in col:
+                val = str(cell.value or '')
+                # Filter long paragraphs to prevent excessive column stretching
+                if len(val) < 60:
+                    max_len = max(max_len, len(val))
+            # Auto-set width with default minimal safety padding
+            worksheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
+            
     output.seek(0)
     return Response(
         output.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-disposition": f"attachment; filename={scan.name.replace(' ', '_')}.csv"}
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-disposition": f"attachment; filename={scan.name.replace(' ', '_')}.xlsx"}
     )
 
 @app.route('/seed')
