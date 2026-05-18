@@ -3,32 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DataPulse Forex Intelligence</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <title>DataPulse Forex & Multi-Asset Intelligence</title>
+    <!-- Google Fonts for High-End Luxury & Technical Fintech Feel -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <nav>
-        <div style="font-weight: 800; font-size: 1.2rem; color: #4361ee;">
-            <i class="fas fa-chart-line"></i> DATAPULSE
-        </div>
-        <div>
-            <a href="/" style="margin-right: 20px; text-decoration: none; color: #666; font-weight: 500;">Home</a>
-            <a href="/dashboard" style="text-decoration: none; color: #666; font-weight: 500;">Intelligence Hub</a>
+    <nav class="nav-bar">
+        <a href="/" class="logo">
+            <i class="fas fa-crown"></i> DATA<span class="logo-gold">PULSE</span>
+        </a>
+        <div class="nav-links">
+            <a href="/" class="{% if request.path == '/' %}active{% endif %}">Home</a>
+            <a href="/dashboard" class="btn-nav-hud {% if request.path == '/dashboard' %}active{% endif %}">Intelligence Hub</a>
         </div>
     </nav>
 
-    <div style="padding: 20px;">
+    <div class="main-content">
         {% block content %}
         {% endblock %}
     </div>
 
-    <div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; color: var(--primary);">
-        <i class="fas fa-satellite-dish fa-spin" style="font-size: 3rem; margin-bottom: 1rem;"></i>
-        <h2 style="font-family: var(--font-display);">Synchronizing Intelligence...</h2>
-        <p style="color: var(--text-dim);">Analyzing global economic data streams</p>
+    <!-- Elegant Luxury Loading Overlay -->
+    <div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(29, 20, 15, 0.95); backdrop-filter: blur(12px); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; color: var(--primary);">
+        <div class="intelligence-pulse" style="margin-bottom: 1.5rem;">
+            <i class="fas fa-crown"></i>
+        </div>
+        <h2 style="font-family: var(--font-serif); letter-spacing: 2px; color: #FFFFFF; font-size: 1.8rem; margin-bottom: 0.5rem;">Synchronizing Intelligence...</h2>
+        <p style="color: var(--primary-light); font-family: var(--font-display); font-weight: 500;">Analyzing global economic data streams</p>
     </div>
+
+    <footer class="footer">
+        <p>&copy; 2026 DATAPULSE Forex Intelligence. Crafted for Institutional-Grade Performance.</p>
+    </footer>
 
     <script>
         document.querySelectorAll('form').forEach(form => {

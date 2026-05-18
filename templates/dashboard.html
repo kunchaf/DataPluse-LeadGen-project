@@ -99,8 +99,7 @@
             {% for lead in leads %}
             {% if lead.date != vars.prev_date %}
             <tr class="date-breaker">
-                <td colspan="7"
-                    style="background: var(--bg-input); padding: 1rem 1.5rem; font-weight: 800; color: var(--primary); border-radius: 8px; font-family: var(--font-display); border-bottom: 2px solid var(--primary-light);">
+                <td colspan="7">
                     <i class="fas fa-calendar-day"></i> {{ lead.date }}
                 </td>
             </tr>
@@ -111,12 +110,11 @@
                 <td><strong class="entity-name">{{ lead.currency }}</strong></td>
                 <td>
                     {% if lead.killzone != 'Outside' %}
-                    <span class="killzone-pill"
-                        style="background: rgba(67, 97, 238, 0.1); color: var(--primary); padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; border: 1px solid rgba(67, 97, 238, 0.2);">
+                    <span class="killzone-pill">
                         <i class="fas fa-clock"></i> {{ lead.killzone }}
                     </span>
                     {% else %}
-                    <span style="color: var(--text-dim); font-size: 0.7rem;">--</span>
+                    <span style="color: var(--text-dim); font-size: 0.75rem; font-weight: 700;">--</span>
                     {% endif %}
                 </td>
                 <td>
@@ -137,7 +135,7 @@
                         <i class="fas fa-fire-alt"></i> High
                     </span>
                     {% elif lead.impact == 'Medium' %}
-                    <span class="badge" style="background: #fff3cd; color: #856404; border: 1px solid #ffeeba;">
+                    <span class="badge" style="background: rgba(217, 160, 91, 0.12); color: #b57a31; border: 1px solid rgba(217, 160, 91, 0.25);">
                         <i class="fas fa-exclamation-circle"></i> Medium
                     </span>
                     {% else %}
@@ -161,8 +159,8 @@
             </tr>
             <tr id="insight-{{ lead.id }}" class="insight-row" style="display: none;">
                 <td colspan="7">
-                    <div class="insight-content" style="padding: 10px; background: rgba(0,0,0,0.1); border-radius: 8px;">
-                        <div class="insight-header" style="font-weight: bold; margin-bottom: 5px;">
+                    <div class="insight-content">
+                        <div class="insight-header">
                             <i class="fas fa-brain"></i> Intelligence Analysis
                         </div>
                         <p>{{ lead.explanation|safe if lead.explanation else "No detailed analysis available for this event." }}</p>

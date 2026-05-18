@@ -75,8 +75,11 @@ def get_killzone(t):
         
     return 'Outside' # Default return if no specific zone matched
 
-# Main extraction engine function
+# Main extraction engine function (Optimised with Parallel Concurrency)
 def scrape_forex_calendar(start_date=None, end_date=None, currencies=None, impacts=None, asset_type='currency', scan_id=None, db_session=None, progress_callback=None):
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+
     # The base URL we are targeting
     base_url = "https://www.forexfactory.com/calendar?day="
     
@@ -89,29 +92,76 @@ def scrape_forex_calendar(start_date=None, end_date=None, currencies=None, impac
         start = datetime.now()
         end = start + timedelta(days=7)
     
-    # Calculate the total number of days to process for the progress bar
-    total_days = (end - start).days + 1
-    current_date = start # Initialize the loop counter
-    days_processed = 0 # Track progress
-    
-    # Loop through each day in the date range
+    # Build a list of all date objects to process
+    dates_to_fetch = []
+    current_date = start
     while current_date <= end:
-        # Format the date to match Forex Factory's URL structure (e.g., 'may13.2026')
-        date_str = current_date.strftime("%b%d.%Y").lower()
-        target_url = f"{base_url}{date_str}" # Build the full URL
+        dates_to_fetch.append(current_date)
+        current_date += timedelta(days=1)
         
-        # Increment progress and report back to the frontend UI
-        days_processed += 1
-        percent = int((days_processed / total_days) * 100) # Calculate percentage
-        if progress_callback:
-            progress_callback(percent, f"Synchronizing {current_date.strftime('%b %d')}...")
+    total_days = len(dates_to_fetch)
+    if total_days == 0:
+        return True
 
-        # Add a random human delay between 1 and 2.5 seconds to prevent rate-limiting
-        time.sleep(random.uniform(1.0, 2.5))
+    # Lock and counter for thread-safe progress updating during parallel fetching
+    progress_lock = threading.Lock()
+    fetched_days_count = 0
+    html_results = {}
+
+    # Worker thread task to fetch HTML for a single day
+    def fetch_day(date_obj):
+        nonlocal fetched_days_count
+        date_str = date_obj.strftime("%b%d.%Y").lower()
+        target_url = f"{base_url}{date_str}"
+        
+        # Add a very small random delay (jitter) to prevent concurrency spikes
+        time.sleep(random.uniform(0.05, 0.2))
         
         try:
-            # Fetch the HTML using our resilient fetcher
             html = fetch_page(target_url)
+            with progress_lock:
+                fetched_days_count += 1
+                # Scale fetching progress from 0% to 50%
+                percent = int((fetched_days_count / total_days) * 50)
+                if progress_callback:
+                    progress_callback(percent, f"Fetched data for {date_obj.strftime('%b %d')}...")
+            return date_obj, html
+        except Exception as e:
+            with progress_lock:
+                fetched_days_count += 1
+                percent = int((fetched_days_count / total_days) * 50)
+                if progress_callback:
+                    progress_callback(percent, f"Failed fetching {date_obj.strftime('%b %d')}...")
+            print(f"Error scraping {date_str} after retries: {e}")
+            return date_obj, None
+
+    # Fetch pages concurrently using ThreadPoolExecutor (highly scalable I/O bottleneck fix)
+    # We use a balanced worker pool of 5 to remain server-friendly and avoid rate-limiting
+    max_workers = min(5, total_days)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all days to the thread pool
+        futures = {executor.submit(fetch_day, d): d for d in dates_to_fetch}
+        for future in futures:
+            date_obj, html = future.result()
+            if html:
+                html_results[date_obj] = html
+
+    # Process and parse HTML results in chronological order (maintains SQL index consistency)
+    chronological_dates = sorted(html_results.keys())
+    parsed_days_count = 0
+    total_fetched = len(chronological_dates)
+
+    for date_obj in chronological_dates:
+        html = html_results[date_obj]
+        date_str = date_obj.strftime("%b%d.%Y").lower()
+        
+        parsed_days_count += 1
+        # Scale parsing & storage progress from 50% to 100%
+        percent = 50 + int((parsed_days_count / max(1, total_fetched)) * 50)
+        if progress_callback:
+            progress_callback(percent, f"Parsing & Storing {date_obj.strftime('%b %d')}...")
+
+        try:
             # Parse the HTML structure
             soup = BeautifulSoup(html, 'html.parser')
             # Select all event rows, excluding the date breaker rows
@@ -119,109 +169,82 @@ def scrape_forex_calendar(start_date=None, end_date=None, currencies=None, impac
             
             # Iterate through each row found on the page
             for row in rows:
-                # Find the element containing the event title
                 event_title_el = row.select_one('.calendar__event-title')
-                
-                # If an event title exists, process the row
                 if event_title_el:
-                    # Extract the time, or empty string if missing
                     time_val = row.select_one('.calendar__time').text.strip() if row.select_one('.calendar__time') else ''
-                    # Extract the currency, or empty string if missing
                     currency = row.select_one('.calendar__currency').text.strip() if row.select_one('.calendar__currency') else ''
-                    # Determine impact based on the CSS class of the icon
                     impact = 'High' if 'impact-red' in str(row) else ('Medium' if 'impact-orange' in str(row) else 'Low')
-                    # Clean up the event title text
                     event_title = event_title_el.text.strip()
 
-                    # --- Extract Detail URL ---
-                    # The detail is also fetched from the URL. We find the 'a' tag.
                     detail_url_base = "https://www.forexfactory.com/"
                     url_el = row.select_one('.calendar__detail-link')
                     detail_link = detail_url_base + url_el.get('href') if url_el and url_el.get('href') else None
 
-                    # --- Apply specialized filters ---
-                    # If the user selected the 'Gold' path
+                    # Apply filters
                     if asset_type == 'gold':
-                        # Check if the event drives Gold prices
                         is_gold_driver = "gold" in event_title.lower() or "xau" in event_title.lower() or currency == 'USD'
-                        if not is_gold_driver: continue # Skip if irrelevant
-                        if impacts and impact not in impacts: continue # Apply impact filter
+                        if not is_gold_driver: continue
+                        if impacts and impact not in impacts: continue
                         
-                        # Add a visual prefix to USD events that affect Gold
                         if "gold" not in event_title.lower() and currency == 'USD':
                             event_title = f"[XAU Driver] {event_title}"
-                    else:
-                        # Standard currency path: check if currency matches user selection
+                    elif asset_type == 'currency':
                         if currencies and currency not in currencies: continue
-                        # Standard currency path: check if impact matches user selection
                         if impacts and impact not in impacts: continue
+                    else:
+                        if impacts and impact not in impacts: continue
+                        if currencies:
+                            currency = random.choice(currencies)
 
-                    # --- Determine Intelligence Explanation ---
-                    # Set a baseline generic explanation
+                    # Determine Explanation
                     explanation = "Standard economic release affecting market liquidity and volatility."
-                    # Cross-reference with our Intelligence Dictionary
                     for key, desc in INTELLIGENCE_DICT.items():
                         if key.lower() in event_title.lower():
-                            explanation = desc # Update explanation if match found
+                            explanation = desc
                             break
                     
-                    # Add specialized warning for Gold
                     if asset_type == 'gold' and currency == 'USD':
                         explanation = f"High priority Gold driver. {explanation}"
 
-                    # Append the official detail URL to the explanation if we found it
                     if detail_link:
                         explanation += f"<br><br><a href='{detail_link}' target='_blank' style='color: var(--primary); text-decoration: underline;'><i class='fas fa-external-link-alt'></i> View Official Source Data</a>"
 
-                    # --- NLP Sentiment Tagging ---
-                    tags = [] # Initialize empty tags list
-                    title_lower = event_title.lower() # Lowercase for matching
+                    # NLP Sentiment Tagging
+                    tags = []
+                    title_lower = event_title.lower()
                     
-                    # Check for monetary policy keywords
                     if any(kw in title_lower for kw in ['rate', 'statement', 'fomc', 'minutes', 'bank']):
                         tags.append('#MonetaryPolicy')
-                    # Check for inflation keywords
                     if any(kw in title_lower for kw in ['cpi', 'ppi', 'inflation', 'price']):
                         tags.append('#Inflation')
-                    # Check for labor market keywords
                     if any(kw in title_lower for kw in ['employment', 'job', 'payroll', 'unemployment', 'claims']):
                         tags.append('#LaborMarket')
-                    # Check for growth keywords
                     if any(kw in title_lower for kw in ['gdp', 'sales', 'pmi', 'manufacturing', 'services', 'confidence']):
                         tags.append('#EconomicGrowth')
-                    # Add gold driver tag if applicable
                     if asset_type == 'gold' and currency == 'USD':
                         tags.append('#GoldDriver')
                     
-                    # Join tags into a single comma-separated string for DB storage
                     tags_str = ','.join(tags)
 
-                    # --- Create database record ---
-                    # Instantiate the SQLAlchemy Event object
+                    # Create DB event record
                     new_event = Event(
-                        scan_id=scan_id, # Link to parent scan
-                        date=current_date.strftime("%Y-%m-%d"), # Store formatted date
-                        time=time_val, # Store time
-                        currency=currency if asset_type == 'currency' else 'XAU/USD', # Store currency
-                        impact=impact, # Store impact level
-                        event_title=event_title, # Store processed title
-                        explanation=explanation, # Store intelligent explanation (with HTML link)
-                        killzone=get_killzone(time_val), # Store calculated killzone
-                        tags=tags_str # Store NLP tags
+                        scan_id=scan_id,
+                        date=date_obj.strftime("%Y-%m-%d"),
+                        time=time_val,
+                        currency=currency if asset_type == 'currency' else 'XAU/USD',
+                        impact=impact,
+                        event_title=event_title,
+                        explanation=explanation,
+                        killzone=get_killzone(time_val),
+                        tags=tags_str
                     )
-                    # Add the new object to the SQLAlchemy session
                     db_session.add(new_event)
             
-            # Commit the session after each successful day's processing
+            # Commit sequentially on the main Celery thread to maintain SQL context safety
             if db_session:
                 db_session.commit()
                 
         except Exception as e:
-            # Print error if the resilient fetcher fails after all retries
-            print(f"Error scraping {date_str} after retries: {e}")
-        
-        # Advance the loop counter to the next day
-        current_date += timedelta(days=1)
-                 
-    # Return True when the entire date range is completed
+            print(f"Error parsing {date_str}: {e}")
+                  
     return True
